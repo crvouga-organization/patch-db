@@ -1,0 +1,82 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+**/dist/
+web-build/
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# Turbo
+.turbo/
+/out
+
+# dependency-cruiser HTML (bun run deps:graph)
+tmp/package-deps-graph.html
+
+# Lichess puzzle CSV cache (seed:puzzles)
+libs/chess/.cache/
+# Legacy Lichess cache location (kept ignored so old checkouts that still
+# have files under apps/api/.cache don't dirty the tree).
+apps/api/.cache/
+
+# Local PostgreSQL cluster + lifecycle artifacts (pkgs/postgres)
+pkgs/postgres/.postgres/
+# Legacy PGlite data dir (kept ignored so old checkouts don't dirty the tree)
+pkgs/postgres/.pglite/
+
+# typescript
+*.tsbuildinfo
+
+# PatchDB app build output (opt-in)
+.sim-recordings/
+
+app-example
+
+# generated native folders
+/ios
+/android
+apps/client/ios/
+apps/client/android/
+
+.cursor/debug*.log
+
+# Local observability span export (opt-in dev debugging)
+.observability/
+
+# infra cost report
+.cost-report.md
+
+/.turbo/
+/turbo/
+.wrangler/
+
+# actionlint binary (downloaded by CI / local check)
+/actionlint
+# Turborepo
+.turbo

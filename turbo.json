@@ -1,0 +1,75 @@
+{
+  "$schema": "https://v2-10-1.turborepo.dev/schema.json",
+  "ui": "stream",
+  "concurrency": "10",
+  "globalDependencies": ["bun.lock", "tsconfig.json", "package.json"],
+  "globalPassThroughEnv": ["DATABASE_URL"],
+  "tasks": {
+    "tc": {
+      "dependsOn": ["^tc"],
+      "inputs": ["**/*.ts", "**/*.tsx", "tsconfig.json", "../../tsconfig.json"],
+      "outputLogs": "new-only",
+      "outputs": []
+    },
+    "lint": {
+      "dependsOn": ["^tc"],
+      "inputs": ["**/*.ts", "**/*.tsx", "eslint.config.js"],
+      "outputLogs": "new-only",
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^tc"],
+      "inputs": ["**/*.ts", "**/*.tsx", "**/*.test.ts"],
+      "outputLogs": "new-only",
+      "outputs": []
+    },
+    "//#ci:format": {
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": [],
+      "outputLogs": "new-only"
+    },
+    "//#ci:syncpack": {
+      "inputs": [
+        "package.json",
+        "pkgs/*/package.json",
+        ".syncpackrc.cjs",
+        "scripts/check-catalog-deps.ts",
+        "scripts/check-no-patches.ts"
+      ],
+      "outputs": [],
+      "outputLogs": "new-only"
+    },
+    "//#ci:depcruise": {
+      "inputs": [
+        "pkgs/**/*.ts",
+        "pkgs/**/*.tsx",
+        ".dependency-cruiser.cjs"
+      ],
+      "outputs": [],
+      "outputLogs": "new-only"
+    },
+    "//#ci:circular-deps": {
+      "inputs": [
+        "pkgs/**/*.ts",
+        "pkgs/**/*.tsx",
+        "pkgs/*/package.json",
+        "scripts/check-circular-deps.ts",
+        "scripts/workspace-package-import-graph.ts"
+      ],
+      "outputs": [],
+      "outputLogs": "new-only"
+    },
+    "//#ci:no-direct-pg-imports": {
+      "inputs": [
+        "pkgs/**/*.ts",
+        "pkgs/**/*.tsx",
+        "scripts/check-no-direct-pg-imports.ts"
+      ],
+      "outputs": [],
+      "outputLogs": "new-only"
+    },
+    "//#ci:audit": {
+      "cache": false
+    }
+  }
+}

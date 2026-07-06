@@ -1,0 +1,6 @@
+.github/workflows/
+
+node_modules
+dist
+.expo
+*.lock

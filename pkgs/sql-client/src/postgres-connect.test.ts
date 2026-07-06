@@ -1,0 +1,143 @@
+import { describe, expect, test } from 'bun:test';
+import { SqlClientImplBunPostgres } from './impl-bun-postgres';
+import {
+  createPgPool,
+  ensurePostgresSchema,
+  isLoopbackPostgresUrl,
+  openPgClient,
+} from './postgres-connect';
+import { createPostgresDbScope, quotePgIdent } from './postgres-schema';
+import {
+  postgresRejectsStartupSearchPathOption,
+  withPostgresSearchPathOption,
+} from './postgres-session-schema';
+
+const DATABASE_URL = process.env['DATABASE_URL'] ?? '';
+const HAS_DB = DATABASE_URL.length > 0;
+const TEST_SCHEMA = 'patch_db_test_scope';
+
+describe('postgres-schema', () => {
+  test('scope carries the injected schema name', () => {
+    const scope = createPostgresDbScope('my_app');
+    expect(scope.schema).toBe('my_app');
+  });
+
+  test('quotePgIdent double-quotes and escapes embedded quotes', () => {
+    expect(quotePgIdent('patch_db')).toBe('"patch_db"');
+    expect(quotePgIdent('we"ird')).toBe('"we""ird"');
+  });
+});
+
+describe('withPostgresSearchPathOption', () => {
+  test('pins search_path via the libpq startup options parameter', () => {
+    const out = withPostgresSearchPathOption(
+      'postgres://u:p@host:5432/db?sslmode=disable',
+      createPostgresDbScope('my_app')
+    );
+    const url = new URL(out);
+    expect(url.searchParams.get('options')).toBe('-c search_path=my_app');
+    expect(url.searchParams.get('sslmode')).toBe('disable');
+  });
+
+  test('returns the input unchanged when it is not a URL', () => {
+    const out = withPostgresSearchPathOption(
+      'not a url',
+      createPostgresDbScope('my_app')
+    );
+    expect(out).toBe('not a url');
+  });
+
+  test('skips startup options on Neon pooler hosts', () => {
+    const input =
+      'postgres://u:p@ep-cool-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require';
+    expect(postgresRejectsStartupSearchPathOption(input)).toBe(true);
+    const out = withPostgresSearchPathOption(
+      input,
+      createPostgresDbScope('my_app')
+    );
+    expect(out).toBe(input);
+    expect(new URL(out).searchParams.get('options')).toBeNull();
+  });
+});
+
+// These hit the ambient `DATABASE_URL`, which under `vault run` is the shared
+// remote dev database. Keep the connection footprint minimal (`max: 1`, each
+// pool closed in its own `finally`) so this suite never contends for connection
+// slots with other DB-touching suites running concurrently under `bun check`.
+describe.skipIf(!HAS_DB)('postgres-connect (DATABASE_URL)', () => {
+  const dbScope = createPostgresDbScope(TEST_SCHEMA);
+
+  test('DATABASE_URL is not loopback (Vault dev hosted Postgres)', () => {
+    expect(isLoopbackPostgresUrl(DATABASE_URL)).toBe(false);
+  });
+
+  test('ensurePostgresSchema creates the schema and is idempotent', async () => {
+    const { pool, sqlClient } = createPgPool({
+      connectionString: DATABASE_URL,
+      dbScope,
+      max: 1,
+    });
+    try {
+      await ensurePostgresSchema(sqlClient, dbScope);
+      // Second call must not throw (CREATE SCHEMA IF NOT EXISTS).
+      await ensurePostgresSchema(sqlClient, dbScope);
+      const rows = await sqlClient.query<{ exists: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = '${TEST_SCHEMA}') AS exists`
+      );
+      expect(rows[0]?.exists).toBe(true);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  test('createPgPool pins every pooled connection to the schema', async () => {
+    const { pool, sqlClient } = createPgPool({
+      connectionString: DATABASE_URL,
+      dbScope,
+      max: 1,
+    });
+    try {
+      await ensurePostgresSchema(sqlClient, dbScope);
+      for (let i = 0; i < 3; i++) {
+        const rows = await sqlClient.query<{ current_schema: string }>(
+          'SELECT current_schema() AS current_schema'
+        );
+        expect(rows[0]?.current_schema).toBe(TEST_SCHEMA);
+      }
+    } finally {
+      await pool.end();
+    }
+  });
+
+  test('openPgClient pins the session and can self-bootstrap the schema', async () => {
+    const { client, sqlClient } = await openPgClient({
+      connectionString: DATABASE_URL,
+      dbScope,
+      ensureSchema: true,
+    });
+    try {
+      const rows = await sqlClient.query<{ current_schema: string }>(
+        'SELECT current_schema() AS current_schema'
+      );
+      expect(rows[0]?.current_schema).toBe(TEST_SCHEMA);
+    } finally {
+      await client.end();
+    }
+  });
+
+  test('SqlClientImplBunPostgres pins every query on Neon pooler URLs', async () => {
+    const sqlClient = SqlClientImplBunPostgres.connect(DATABASE_URL, dbScope);
+    try {
+      await sqlClient.connect();
+      await ensurePostgresSchema(sqlClient, dbScope);
+      for (let i = 0; i < 3; i++) {
+        const rows = await sqlClient.query<{ current_schema: string }>(
+          'SELECT current_schema() AS current_schema'
+        );
+        expect(rows[0]?.current_schema).toBe(TEST_SCHEMA);
+      }
+    } finally {
+      await sqlClient.disconnect();
+    }
+  });
+});

@@ -1,0 +1,19 @@
+{
+  "ignore_dirs": [
+    ".git",
+    ".turbo",
+    ".postgres",
+    ".expo",
+    ".observability",
+    ".qa-dist-dev",
+    ".qa-native",
+    "dist",
+    "build",
+    ".bun",
+    ".cache",
+    "coverage",
+    "Pods",
+    "ios",
+    "android"
+  ]
+}
